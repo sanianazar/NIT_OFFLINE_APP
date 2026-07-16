@@ -1,122 +1,53 @@
 import streamlit as st
-import ollama
+from groq import Groq
 
 st.set_page_config(
-    page_title="Offline AI Chatbot",
-    page_icon="🤖",
-    layout="wide"
+    page_title="AI Chatbot",
+    page_icon="🤖"
 )
 
-# ---------------- Sidebar ----------------
+st.title("🤖 AI Chatbot")
+st.caption("Powered by Groq + Llama")
 
-st.sidebar.title("Offline AI Chatbot")
-
-model_name = st.sidebar.selectbox(
-    "Select AI Model",
-    [
-        "llama3.2",
-        "gemma3",
-        "mistral",
-        "qwen2.5"
-    ]
-)
-
-if st.sidebar.button("Clear Chat"):
-    st.session_state.messages = []
-    st.rerun()
-
-# ---------------- Session ----------------
+try:
+    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+except Exception:
+    st.error("GROQ_API_KEY is missing.")
+    st.stop()
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-st.title("Offline AI Chatbot")
-st.caption("Powered by Ollama")
-
-# ---------------- Chat History ----------------
-
 for message in st.session_state.messages:
-
     with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+        st.write(message["content"])
 
-# ---------------- User Input ----------------
-
-prompt = st.chat_input("Ask anything...")
+prompt = st.chat_input("Ask something...")
 
 if prompt:
-
-    st.session_state.messages.append(
-        {
-            "role": "user",
-            "content": prompt
-        }
-    )
+    st.session_state.messages.append({
+        "role": "user",
+        "content": prompt
+    })
 
     with st.chat_message("user"):
-        st.markdown(prompt)
+        st.write(prompt)
 
-    conversation = []
-
-    for chat in st.session_state.messages:
-
-        conversation.append(
-            {
-                "role": chat["role"],
-                "content": chat["content"]
-            }
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=st.session_state.messages
         )
 
-    with st.spinner("Generating response..."):
+        answer = response.choices[0].message.content
 
-        response = ollama.chat(
-            model=model_name,
-            messages=conversation
-        )
-
-    answer = response["message"]["content"]
-
-    with st.chat_message("assistant"):
-        st.markdown(answer)
-
-    st.session_state.messages.append(
-        {
+        st.session_state.messages.append({
             "role": "assistant",
             "content": answer
-        }
-    )
+        })
 
-# ---------------- Statistics ----------------
+        with st.chat_message("assistant"):
+            st.write(answer)
 
-st.sidebar.markdown("---")
-
-st.sidebar.subheader("Statistics")
-
-user_count = len(
-    [m for m in st.session_state.messages if m["role"] == "user"]
-)
-
-ai_count = len(
-    [m for m in st.session_state.messages if m["role"] == "assistant"]
-)
-
-st.sidebar.write(f"User Messages : {user_count}")
-st.sidebar.write(f"AI Responses : {ai_count}")
-
-# ---------------- Download Chat ----------------
-
-chat_history = ""
-
-for message in st.session_state.messages:
-
-    chat_history += (
-        f"{message['role'].upper()}:\n"
-        f"{message['content']}\n\n"
-    )
-
-st.sidebar.download_button(
-    "Download Chat",
-    chat_history,
-    "chat_history.txt",
-    "text/plain"
-)
+    except Exception as error:
+        st.error(f"Error: {error}")
